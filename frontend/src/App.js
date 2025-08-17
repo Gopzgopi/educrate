@@ -796,6 +796,7 @@ function StudySessionView({ user }) {
             {moods.map(mood => (
               <Button
                 key={mood.value}
+                type="button"
                 variant={sessionData.mood === mood.value ? "default" : "outline"}
                 onClick={() => setSessionData({...sessionData, mood: mood.value})}
                 className="h-auto p-4 flex flex-col gap-2"
