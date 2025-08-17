@@ -366,7 +366,7 @@ function AssessmentView({ user, onComplete }) {
             className="space-y-4"
           >
             {question.options.map((option, index) => (
-              <div key={index} className="flex items-start space-x-3 p-4 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-colors cursor-pointer">
+              <div key={index} className="flex items-start space-x-3 p-4 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-colors">
                 <RadioGroupItem value={option.value} id={`${question.id}-${index}`} className="mt-1" />
                 <Label htmlFor={`${question.id}-${index}`} className="flex-1 cursor-pointer leading-relaxed">
                   {option.text}
