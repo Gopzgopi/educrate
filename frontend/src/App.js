@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 
 // Import shadcn/ui components
@@ -16,9 +15,10 @@ import { Badge } from './components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from './components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from './components/ui/alert-dialog';
+import { ScrollArea } from './components/ui/scroll-area';
 
 // Import icons from lucide-react
-import { BookOpen, Brain, Headphones, Eye, Zap, Clock, MessageCircle, TrendingUp, User, Settings, Plus, Search, Play, Download, Star } from 'lucide-react';
+import { BookOpen, Brain, Headphones, Eye, Zap, Clock, MessageCircle, TrendingUp, User, Settings, Plus, Search, Play, Download, Star, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 // Configure axios
 const api = axios.create({
@@ -402,7 +402,6 @@ function AssessmentView({ user, onComplete }) {
 // Dashboard Component
 function DashboardView({ user, kits, onKitCreated }) {
   const [activeTab, setActiveTab] = useState('create');
-  const [isCreating, setIsCreating] = useState(false);
   
   return (
     <div className="space-y-8">
@@ -477,7 +476,7 @@ function DashboardView({ user, kits, onKitCreated }) {
   );
 }
 
-// Create Kit Component
+// Create Kit Component with Real-Time Logging
 function CreateKitView({ user, onKitCreated }) {
   const [formData, setFormData] = useState({
     topic: '',
@@ -485,107 +484,203 @@ function CreateKitView({ user, onKitCreated }) {
     target_styles: user.learning_styles || []
   });
   const [isCreating, setIsCreating] = useState(false);
+  const [processingLogs, setProcessingLogs] = useState([]);
+  const [currentStep, setCurrentStep] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsCreating(true);
+    setProcessingLogs([]);
+    setCurrentStep('Starting...');
 
     try {
-      const params = new URLSearchParams({
+      const requestData = {
         user_id: user.id,
         topic: formData.topic,
-        source_content: formData.source_content
-      });
+        source_content: formData.source_content,
+        target_styles: formData.target_styles.length > 0 ? formData.target_styles : user.learning_styles
+      };
 
-      formData.target_styles.forEach(style => {
-        params.append('target_styles', style);
-      });
+      console.log('Sending request to /api/kit/create:', requestData);
 
-      const response = await api.post(`/api/learning-kits?${params}`);
+      const response = await api.post('/api/kit/create', requestData);
       
-      if (response.data.kit) {
-        alert('Learning kit created successfully!');
-        setFormData({ topic: '', source_content: '', target_styles: user.learning_styles || [] });
-        onKitCreated();
+      if (response.data.success) {
+        setCurrentStep('Complete!');
+        setProcessingLogs(response.data.processing_logs || []);
+        
+        // Show success message
+        setTimeout(() => {
+          alert(`Learning kit "${formData.topic}" created successfully!`);
+          setFormData({ topic: '', source_content: '', target_styles: user.learning_styles || [] });
+          setProcessingLogs([]);
+          setCurrentStep('');
+          onKitCreated();
+        }, 2000);
       }
     } catch (error) {
       console.error('Error creating kit:', error);
-      alert('Error creating kit. Please try again.');
+      setCurrentStep('Error occurred');
+      
+      let errorMessage = 'Failed to create learning kit. Please try again.';
+      if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      }
+      
+      alert(errorMessage);
     } finally {
       setIsCreating(false);
     }
   };
 
+  const getStepIcon = (step) => {
+    if (step.includes('completed') || step.includes('success')) {
+      return <CheckCircle className="w-4 h-4 text-green-600" />;
+    } else if (step.includes('failed') || step.includes('error')) {
+      return <AlertCircle className="w-4 h-4 text-red-600" />;
+    } else if (step.includes('in_progress')) {
+      return <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />;
+    } else {
+      return <Clock className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const getStepColor = (step) => {
+    if (step.includes('completed') || step.includes('success')) {
+      return 'text-green-700 bg-green-50 border-green-200';
+    } else if (step.includes('failed') || step.includes('error')) {
+      return 'text-red-700 bg-red-50 border-red-200';
+    } else if (step.includes('in_progress')) {
+      return 'text-blue-700 bg-blue-50 border-blue-200';
+    } else {
+      return 'text-gray-700 bg-gray-50 border-gray-200';
+    }
+  };
+
   return (
-    <Card className="shadow-lg border-0 bg-white/90 backdrop-blur-sm">
-      <CardHeader>
-        <CardTitle className="text-2xl flex items-center gap-2">
-          <Plus className="w-6 h-6" />
-          Create New Learning Kit
-        </CardTitle>
-        <CardDescription>
-          Generate personalized content based on your learning style preferences
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <Label htmlFor="topic">Learning Topic</Label>
-            <Input
-              id="topic"
-              value={formData.topic}
-              onChange={(e) => setFormData({...formData, topic: e.target.value})}
-              placeholder="e.g., Machine Learning Basics, Photosynthesis, World War II"
-              required
-              className="mt-1"
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="content">Source Content</Label>
-            <Textarea
-              id="content"
-              value={formData.source_content}
-              onChange={(e) => setFormData({...formData, source_content: e.target.value})}
-              placeholder="Paste your study material, article, or notes here..."
-              required
-              className="mt-1 min-h-[200px]"
-            />
-          </div>
-
-          <div>
-            <Label>Learning Styles (Your Preferences)</Label>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {(user.learning_styles || []).map(style => (
-                <Badge key={style} variant="secondary" className="px-3 py-1">
-                  {style.charAt(0).toUpperCase() + style.slice(1)}
-                </Badge>
-              ))}
+    <div className="space-y-6">
+      <Card className="shadow-lg border-0 bg-white/90 backdrop-blur-sm">
+        <CardHeader>
+          <CardTitle className="text-2xl flex items-center gap-2">
+            <Plus className="w-6 h-6" />
+            Create New Learning Kit
+          </CardTitle>
+          <CardDescription>
+            Generate personalized content based on your learning style preferences
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <Label htmlFor="topic">Learning Topic</Label>
+              <Input
+                id="topic"
+                value={formData.topic}
+                onChange={(e) => setFormData({...formData, topic: e.target.value})}
+                placeholder="e.g., Machine Learning Basics, Photosynthesis, World War II"
+                required
+                className="mt-1"
+                disabled={isCreating}
+              />
             </div>
-            {(!user.learning_styles || user.learning_styles.length === 0) && (
-              <p className="text-sm text-gray-500 mt-2">
-                Complete the learning assessment to get personalized content recommendations.
-              </p>
-            )}
-          </div>
 
-          <Button 
-            type="submit" 
-            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700" 
-            disabled={isCreating}
-          >
-            {isCreating ? (
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Generating Content...
+            <div>
+              <Label htmlFor="content">Source Content</Label>
+              <Textarea
+                id="content"
+                value={formData.source_content}
+                onChange={(e) => setFormData({...formData, source_content: e.target.value})}
+                placeholder="Paste your study material, article, or notes here..."
+                required
+                className="mt-1 min-h-[200px]"
+                disabled={isCreating}
+              />
+            </div>
+
+            <div>
+              <Label>Learning Styles (Your Preferences)</Label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {(user.learning_styles || []).map(style => (
+                  <Badge key={style} variant="secondary" className="px-3 py-1">
+                    {style.charAt(0).toUpperCase() + style.slice(1)}
+                  </Badge>
+                ))}
               </div>
-            ) : (
-              'Create Learning Kit'
-            )}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+              {(!user.learning_styles || user.learning_styles.length === 0) && (
+                <p className="text-sm text-gray-500 mt-2">
+                  Complete the learning assessment to get personalized content recommendations.
+                </p>
+              )}
+            </div>
+
+            <Button 
+              type="submit" 
+              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700" 
+              disabled={isCreating}
+            >
+              {isCreating ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Creating Learning Kit...
+                </div>
+              ) : (
+                'Create Learning Kit'
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Processing Logs Display */}
+      {(isCreating || processingLogs.length > 0) && (
+        <Card className="shadow-lg border-0 bg-white/90 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="text-xl flex items-center gap-2">
+              <Brain className="w-5 h-5" />
+              AI Processing Status
+            </CardTitle>
+            <CardDescription>
+              Real-time updates on your learning kit creation
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-64 w-full pr-4">
+              <div className="space-y-3">
+                {processingLogs.map((log, index) => (
+                  <div 
+                    key={index}
+                    className={`flex items-start gap-3 p-3 rounded-lg border ${getStepColor(log.status)}`}
+                  >
+                    {getStepIcon(log.status)}
+                    <div className="flex-1">
+                      <div className="font-medium text-sm">
+                        {log.step.replace('_', ' ').toUpperCase()}
+                      </div>
+                      <div className="text-sm opacity-90 mt-1">
+                        {log.message}
+                      </div>
+                      <div className="text-xs opacity-70 mt-1">
+                        {new Date(log.timestamp).toLocaleTimeString()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                {isCreating && processingLogs.length === 0 && (
+                  <div className="flex items-center gap-3 p-3 rounded-lg border border-blue-200 bg-blue-50">
+                    <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                    <div className="text-blue-700">
+                      <div className="font-medium text-sm">INITIALIZING</div>
+                      <div className="text-sm">Starting AI content generation...</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 
@@ -624,6 +719,14 @@ function MyKitsView({ kits }) {
                 <p className="text-sm text-gray-600 line-clamp-3">
                   {kit.source_content?.substring(0, 120)}...
                 </p>
+                
+                {/* Show processing status if available */}
+                {kit.processing_logs && kit.processing_logs.length > 0 && (
+                  <div className="mt-4 text-xs text-green-600 flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" />
+                    <span>AI Generated</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -658,6 +761,23 @@ function KitDetailView({ kit, onClose }) {
             ))}
           </div>
 
+          {/* Show processing logs if available */}
+          {kit.processing_logs && kit.processing_logs.length > 0 && (
+            <Card className="border border-green-200 bg-green-50">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg text-green-800 flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5" />
+                  AI Processing Complete
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm text-green-700">
+                  Successfully generated {kit.content_items?.length || 0} content items using local AI processing.
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {(kit.content_items || []).map((item, index) => (
             <Card key={index} className="border border-gray-200">
               <CardHeader className="pb-3">
@@ -679,6 +799,9 @@ function KitDetailView({ kit, onClose }) {
                       <div key={cardIndex} className="p-3 bg-gray-50 rounded-lg">
                         <p className="font-medium text-sm">{card.question}</p>
                         <p className="text-sm text-gray-600 mt-1">{card.answer}</p>
+                        {card.hint && (
+                          <p className="text-xs text-gray-500 mt-1 italic">{card.hint}</p>
+                        )}
                       </div>
                     ))}
                     {item.content?.length > 3 && (
@@ -687,7 +810,17 @@ function KitDetailView({ kit, onClose }) {
                   </div>
                 ) : (
                   <div className="prose prose-sm max-w-none">
-                    <p className="whitespace-pre-wrap">{item.content}</p>
+                    <pre className="whitespace-pre-wrap font-sans text-sm">{item.content}</pre>
+                  </div>
+                )}
+                
+                {/* Show metadata */}
+                {item.metadata && (
+                  <div className="mt-4 text-xs text-gray-500 border-t pt-2">
+                    Generated: {new Date(item.metadata.generated_at).toLocaleString()}
+                    {item.metadata.word_count && ` • ${item.metadata.word_count} words`}
+                    {item.metadata.card_count && ` • ${item.metadata.card_count} cards`}
+                    {item.metadata.duration_estimate && ` • ${item.metadata.duration_estimate}`}
                   </div>
                 )}
               </CardContent>
