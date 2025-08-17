@@ -348,7 +348,7 @@ async def get_user_analytics(user_id: str):
     total_qa_sessions = await db.qa_sessions.count_documents({"user_id": user_id})
     
     # Learning style distribution
-    kits_cursor = db.learning_kits.find({"user_id": user_id})
+    kits_cursor = db.learning_kits.find({"user_id": user_id}, {"_id": 0})
     kits = await kits_cursor.to_list(length=None)
     
     style_usage = {}
@@ -357,7 +357,7 @@ async def get_user_analytics(user_id: str):
             style_usage[style] = style_usage.get(style, 0) + 1
     
     # Recent activity
-    recent_kits_cursor = db.learning_kits.find({"user_id": user_id}).sort("created_at", -1).limit(5)
+    recent_kits_cursor = db.learning_kits.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).limit(5)
     recent_kits = await recent_kits_cursor.to_list(length=5)
     
     return {
