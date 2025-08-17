@@ -292,13 +292,13 @@ async def create_learning_kit(
 
 @app.get("/api/users/{user_id}/learning-kits")
 async def get_user_learning_kits(user_id: str):
-    cursor = db.learning_kits.find({"user_id": user_id}).sort("created_at", -1)
+    cursor = db.learning_kits.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1)
     kits = await cursor.to_list(length=50)
     return {"kits": kits}
 
 @app.get("/api/learning-kits/{kit_id}")
 async def get_learning_kit(kit_id: str):
-    kit = await db.learning_kits.find_one({"id": kit_id})
+    kit = await db.learning_kits.find_one({"id": kit_id}, {"_id": 0})
     if kit:
         return kit
     raise HTTPException(status_code=404, detail="Learning kit not found")
